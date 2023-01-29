@@ -1,0 +1,59 @@
+{
+    "Comment": "A description of my state machine",
+    "StartAt": "Map",
+    "States": {
+        "Map": {
+            "Type": "Map",
+            "ItemProcessor": {
+                "ProcessorConfig": {
+                    "Mode": "DISTRIBUTED",
+                    "ExecutionType": "EXPRESS"
+                },
+                "StartAt": "Lambda Invoke",
+                "States": {
+                    "Lambda Invoke": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::lambda:invoke",
+                        "OutputPath": "$.Payload",
+                        "Parameters": {
+                            "Payload.$": "$",
+                            "FunctionName.$": "$.BatchInput.lambda_processor_arn"
+                        },
+                        "Retry": [
+                            {
+                                "ErrorEquals": [
+                                    "Lambda.ServiceException",
+                                    "Lambda.AWSLambdaException",
+                                    "Lambda.SdkClientException",
+                                    "Lambda.TooManyRequestsException"
+                                ],
+                                "IntervalSeconds": 2,
+                                "MaxAttempts": 6,
+                                "BackoffRate": 2
+                            }
+                        ],
+                        "End": true
+                    }
+                }
+            },
+            "End": true,
+            "Label": "Map",
+            "MaxConcurrency": 1000,
+            "ItemReader": {
+                "Resource": "arn:aws:states:::s3:listObjectsV2",
+                "Parameters": {
+                    "Bucket.$": "$.input.source_bucket_name",
+                    "Prefix.$": "$.input.bucket_path"
+                }
+            },
+            "ItemBatcher": {
+                "MaxItemsPerBatch": 100,
+                "BatchInput": {
+                    "lambda_processor_arn.$": "$.input.lambda_processor_arn",
+                    "source_bucket_name.$": "$.input.source_bucket_name",
+                    "destination_bucket_name.$": "$.input.destination_bucket_name"
+                }
+            }
+        }
+    }
+}
